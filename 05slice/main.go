@@ -20,7 +20,12 @@ func main() {
 	//基于数组得到切片
 	m := [5]int{55, 56, 57, 58, 59}
 	//简单切片表达式
-	n := m[1:3]           //设置索引值（左闭右开），从数组m得到切片n
+	n := m[1:3] //设置索引值（左闭右开），从数组m得到切片n
+	for _, v := range m {
+		fmt.Printf("%p\n", &v)
+		fmt.Println(*(&v))
+	}
+	fmt.Println()
 	fmt.Println(n)        //[56,57]
 	fmt.Printf("%T\n", n) //[]int
 	fmt.Println(len(n))   //2

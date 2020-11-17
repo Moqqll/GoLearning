@@ -264,7 +264,3 @@ fmt.Println(slimap)
 //map[中国:[北京 上海]]
 ```
 
-
-
-
-
