@@ -196,12 +196,214 @@ func loadIcons() {
 使用`sync.Once`改造的代码示例如下：
 
 ```go
+var icons map[string]image.Image
 
+var loadIconsOnce sync.Once
+
+func loadIcons(){
+    icons = map[string]image.Image{
+        "left":loadIcon("left.png"),
+        "up":loadIcon("up.png"),
+        "right":loadIcon("right.png"),
+        "down":loadIcon("down.png"),
+    }
+}
+
+//Icon是并发安全的
+func Icon(name string) image.Image{
+    loadIconsOnce.Do(loadIcons)
+    return icons[name]
+}
 ```
 
+### 并发安全的单例模式
 
+下面是借助`sync.Once`实现的并发安全的单例模式：
 
+```go
+package singleton
 
+import "sync"
+
+type singleton struct{}
+
+var instance *singleton
+var once sync.Once
+
+func GetInstance() *singleton{
+    once.Do(func(){
+        instance = &singleton{}  
+    })
+    return instance
+}
+```
+
+`sync.Once`内部其实包含了一个互斥锁和一个布尔值，互斥锁保证布尔值和数据的安全，布尔值用来记录初始化是否完成。这样的设计能够保证初始化操作的时候是并发安全的，并且初始化操作不会被执行多次。
+
+## sync.Map
+
+```go
+var m = make(map[int]int)
+
+func get(key int) int {
+    return m[key]
+}
+
+func set(key int, value int) {
+    m[key] = value
+}
+
+func main() {
+    wg := sync.WaitGroup{}
+    for i:=0;i<20;i++ {
+        wg.Add(1)
+        go func(i int){
+            set(i,i+100)
+            fmt.Printf("key=%v value=%v\n",i,get(i))
+            wg.Done()            
+        }(i)        
+    }
+    wg.Wait()
+}
+```
+
+上面代码开启少量几个`goroutine`的时候可能没什么问题，但当并发多了之后执行上面的代码就会报`fatal error: concurrent map writes`错误。
+
+遇到这种场景时就需要为map加锁来保证并发的安全性了，Go语言的`sync`包中提供了一个开箱即用的并发安全版map--`sync.Map`。开箱即用表示不用像内置的map一样使用make函数初始化就能直接诶使用，同时`sync.Map`内置了诸如`Store`、`Load`、`LoadOrStore`、`Delete`、`Range`等操作方法。
+
+```go
+var m = sync.Map{}
+
+func main(){
+    wg := sync.WaitGroup
+    for i:=0;i<20;i++ {
+        wg.Add(1)
+        go func(i int){
+            m.Store(i,i+100)
+            value,_ := m.Load(i)
+            fmt.Printf("key=%v value=%v",i,value)
+            wg.Done()
+        }(i)
+    }
+    wg.Wait()
+}
+```
+
+## 原子操作
+
+代码中的加锁操作因为设计内核态的上下文切换会比较耗时、代价较高，***针对基本数据类型我们还可以使用`原子操作`来保证并发安全***，原子操作是Go语言提供的方法，它在用户态就可以完成，因此性能比加锁操作更好。
+
+Go语言中原子操作由内置的标准库/原生库`sync/atomic`提供。
+
+### atomic包
+
+| 方法                                                         | 解释           |
+| ------------------------------------------------------------ | -------------- |
+| func LoadInt32(addr *int32)(val int32)<br />func LoadInt64(addr *int64) (val int64)<br/>func LoadUint32(addr *uint32) (val uint32)<br/>func LoadUint64(addr *uint64) (val uint64)<br/>func LoadUintptr(addr *uintptr) (val uintptr)<br/>func LoadPointer(addr *unsafe.Pointer) (val unsafe.Pointer) | 读取操作       |
+| func StoreInt32(addr *int32, val int32)<br/>func StoreInt64(addr *int64, val int64)<br/>func StoreUint32(addr *uint32, val uint32)<br/>func StoreUint64(addr *uint64, val uint64)<br/>func StoreUintptr(addr *uintptr, val uintptr)<br/>func StorePointer(addr *unsafe.Pointer, val unsafe.Pointer) | 写入操作       |
+| func AddInt32(addr *int32, delta int32) (new int32)<br/>func AddInt64(addr *int64, delta int64) (new int64)<br/>func AddUint32(addr *uint32, delta uint32) (new uint32)<br/>func AddUint64(addr *uint64, delta uint64) (new uint64)<br/>func AddUintptr(addr *uintptr, delta uintptr) (new uintptr) | 修改操作       |
+| func SwapInt32(addr *int32, new int32) (old int32)<br/>func SwapInt64(addr *int64, new int64) (old int64)<br/>func SwapUint32(addr *uint32, new uint32) (old uint32)<br/>func SwapUint64(addr *uint64, new uint64) (old uint64)<br/>func SwapUintptr(addr *uintptr, new uintptr) (old uintptr)<br/>func SwapPointer(addr *unsafe.Pointer, new unsafe.Pointer) (old unsafe.Pointer) | 交换操作       |
+| func CompareAndSwapInt32(addr *int32, old, new int32) (swapped bool)<br/>func CompareAndSwapInt64(addr *int64, old, new int64) (swapped bool)<br/>func CompareAndSwapUint32(addr *uint32, old, new uint32) (swapped bool)<br/>func CompareAndSwapUint64(addr *uint64, old, new uint64) (swapped bool)<br/>func CompareAndSwapUintptr(addr *uintptr, old, new uintptr) (swapped bool)<br/>func CompareAndSwapPointer(addr *unsafe.Pointer, old, new unsafe.Pointer) (swapped bool) | 比较并交换操作 |
+
+### 示例
+
+比较下互斥锁和原子操作的性能
+
+```go
+package main
+
+import (
+	"fmt"
+	"sync"
+	"sync/atomic"
+	"time"
+)
+
+type Counter interface {
+	Inc()
+	Load() int64
+}
+
+// 普通版
+type CommonCounter struct {
+	counter int64
+}
+
+func (c CommonCounter) Inc() {
+	c.counter++
+}
+
+func (c CommonCounter) Load() int64 {
+	return c.counter
+}
+
+// 互斥锁版
+type MutexCounter struct {
+	counter int64
+	lock    sync.Mutex
+}
+
+func (m *MutexCounter) Inc() {
+	m.lock.Lock()
+	defer m.lock.Unlock()
+	m.counter++
+}
+
+func (m *MutexCounter) Load() int64 {
+	m.lock.Lock()
+	defer m.lock.Unlock()
+	return m.counter
+}
+
+// 原子操作版
+type AtomicCounter struct {
+	counter int64
+}
+
+func (a *AtomicCounter) Inc() {
+	atomic.AddInt64(&a.counter, 1)
+}
+
+func (a *AtomicCounter) Load() int64 {
+	return atomic.LoadInt64(&a.counter)
+}
+
+func test(c Counter) {
+	var wg sync.WaitGroup
+	start := time.Now()
+	for i := 0; i < 1000; i++ {
+		wg.Add(1)
+		go func() {
+			c.Inc()
+			wg.Done()
+		}()
+	}
+	wg.Wait()
+	end := time.Now()
+	fmt.Println(c.Load(), end.Sub(start))
+}
+
+func main() {
+	c1 := CommonCounter{} // 非并发安全
+	test(c1)
+	c2 := MutexCounter{} // 使用互斥锁实现并发安全
+	test(&c2)
+	c3 := AtomicCounter{} // 并发安全且比互斥锁效率更高
+	test(&c3)
+}
+```
+
+`atomic`包提供了底层的原子级内存操作，对于同步算法的实现很有用。这些函数必须谨慎地保证正确的使用。
+
+除了某些特殊的底层应用，使用通道或者sync包的函数/类型实现同步更好。
+
+# 练习题
+
+1. 使用goroutine和channel实现一个计算int64随机数各位数和的程序。
+   1. 开启一个`goroutine`循环生成int64类型的随机数，发送到`jobChan`
+   2. 开启24个`goroutine`从`jobChan`中取出随机数计算各位数的和，将结果发送到`resultChan`
+   3. 主`goroutine`从`resultChan`取出结果并打印到终端输出
+2. 为了保证业务代码的执行性能将之前写的日志库改写为异步记录日志方式。
 
 
 
