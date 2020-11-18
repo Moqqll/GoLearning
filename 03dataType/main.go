@@ -17,5 +17,5 @@ func main() {
 
 	//十六进制数打印为十六进制
 	f := 0xff
-	fmt.Printf("%x\n", a)
+	fmt.Printf("%x\n", f)
 }
