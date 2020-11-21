@@ -134,4 +134,8 @@ func main() {
 	}
 	fmt.Println(aa)
 	fmt.Printf("len:%d, cap:%d\n", len(aa), cap(aa))
+
+	// s := "hello"
+	// r := []rune(s)
+	// fmt.Println(string(r))
 }
