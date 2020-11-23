@@ -47,11 +47,11 @@ func main() {
 
 **思考题**： 为什么上面代码中的`defer db.Close()`语句不应该写在`if err != nil`的前面呢？
 
-**答案**：`defer`语句注册时，所有变量都必须存在且正确。所以要先对err做判断，确认dbConn变量存在且正确后再注册defer语句。如果dbConn错误，defer语句还会执行而导致panic。
+**答案**：`defer`语句注册时，所有变量都必须存在且正确。所以要先对 err 做判断，确认 dbConn 变量存在且正确后再注册 defer 语句。如果 dbConn 错误，defer 语句还会执行而导致 panic。
 
 ### 初始化连接
 
-Open函数可能只是验证其参数格式是否正确，实际上并不创建于数据库的连接。如果要检查数据源的名称是否真实有效，应该调用Ping方法。
+Open 函数可能只是验证其参数格式是否正确，实际上并不创建于数据库的连接。如果要检查数据源的名称是否真实有效，应该调用 Ping 方法。
 
 ```go
 package main
@@ -100,7 +100,7 @@ func main() {
 }
 ```
 
-其中`sql.DB`是表示连接的数据库对象（结构体实例），它保存了连接数据库相关的所有信息。它内部维护着一个具有零到多个底层连接的连接池，它可以安全地被多个goroutine同时使用。
+其中`sql.DB`是表示连接的数据库对象（结构体实例），它保存了连接数据库相关的所有信息。它内部维护着一个具有零到多个底层连接的连接池，它可以安全地被多个 goroutine 同时使用。
 
 ### SetMaxOpenConns
 
@@ -108,7 +108,7 @@ func main() {
 func (db *DB) SetOpenConns(n int)
 ```
 
-`SetMaxOpenConns`设置与数据库建立连接的最大数目。 如果n大于0且小于最大闲置连接数，会将最大闲置连接数减小到匹配最大开启连接数的限制。 如果n<=0，不会限制最大开启连接数，默认为0（无限制）。
+`SetMaxOpenConns`设置与数据库建立连接的最大数目。 如果 n 大于 0 且小于最大闲置连接数，会将最大闲置连接数减小到匹配最大开启连接数的限制。 如果 n<=0，不会限制最大开启连接数，默认为 0（无限制）。
 
 ### SetMaxIdleConns
 
@@ -116,13 +116,13 @@ func (db *DB) SetOpenConns(n int)
 func (db *DB) SetMaxIdleConns(n int)
 ```
 
-SetMaxIdleConns设置连接池中的最大闲置连接数。 如果n大于最大开启连接数，则新的最大闲置连接数会减小到匹配最大开启连接数的限制。如果n<=0，不会保持闲置连接。
+SetMaxIdleConns 设置连接池中的最大闲置连接数。 如果 n 大于最大开启连接数，则新的最大闲置连接数会减小到匹配最大开启连接数的限制。如果 n<=0，不会保持闲置连接。
 
 ## CURD
 
 ### 建库建表
 
-我们先在MySQL中创建一个名为`sql_test`的数据库：
+我们先在 MySQL 中创建一个名为`sql_test`的数据库：
 
 ```go
 CREATE DATABASE sql_test
@@ -148,7 +148,7 @@ DEFAULT CHARACTER SET = utf8mb4;
 
 ### 查询
 
-为了方便查询，我们事先定义好一个结构体来存储users表的数据。
+为了方便查询，我们事先定义好一个结构体来存储 users 表的数据。
 
 ```go
 type user struct{
@@ -160,7 +160,7 @@ type user struct{
 
 #### 单行查询
 
-单行查询`db.QueryRow()`执行一次查询，并期望返回最多一行结构（即ROW）。QueryRow总是返回非nil的值，直到返回值的Scan方法被调用时，才会返回被延迟的错误（如：未找到结果）。
+单行查询`db.QueryRow()`执行一次查询，并期望返回最多一行结构（即 ROW）。QueryRow 总是返回非 nil 的值，直到返回值的 Scan 方法被调用时，才会返回被延迟的错误（如：未找到结果）。
 
 ```go
 func (db *DB) QueryRow(query string, args ...interface{}) *Row
@@ -183,7 +183,7 @@ func queryRowDemo() {
 
 #### 多行查询
 
-多行查询`db.Query()`执行一次查询，返回多行结果（即Rows），一般用于执行select命令，参数args表示query中的占位参数。
+多行查询`db.Query()`执行一次查询，返回多行结果（即 Rows），一般用于执行 select 命令，参数 args 表示 query 中的占位参数。
 
 ```go
 func (db *DB) Query(query string, args ...interface{}) (*Rows, error)
@@ -222,7 +222,7 @@ func queryMultiRowDemo() {
 func (db *DB) Exec(query string, args ...interface{}) (Result, error)
 ```
 
-Exec执行一次命令（包括查询、删除、更新、插入等），返回的Result是对已执行的SQL命令的总结。参数args表示query中的占位参数。
+Exec 执行一次命令（包括查询、删除、更新、插入等），返回的 Result 是对已执行的 SQL 命令的总结。参数 args 表示 query 中的占位参数。
 
 代码示例：
 
@@ -285,35 +285,35 @@ func deleteRowDemo() {
 }
 ```
 
-## MySQL预处理
+## MySQL 预处理
 
 ### 什么是预处理
 
-普通SQL语句执行过程：
+普通 SQL 语句执行过程：
 
-1、客户端对SQL语句进行占位符替换的到完整的SQL语句。
+1、客户端对 SQL 语句进行占位符替换的到完整的 SQL 语句。
 
-2、客户端发送完整的SQL语句到MySQL服务端。
+2、客户端发送完整的 SQL 语句到 MySQL 服务端。
 
-3、MySQL服务端执行完整的SQL语句并将结果返回客户端。
+3、MySQL 服务端执行完整的 SQL 语句并将结果返回客户端。
 
 预处理执行过程：
 
-1、把SQL语句分成两部分，命令部分与数据部分。
+1、把 SQL 语句分成两部分，命令部分与数据部分。
 
-2、先把命令部分发送给MySQL服务端，MySQL服务端进行SQL预处理。
+2、先把命令部分发送给 MySQL 服务端，MySQL 服务端进行 SQL 预处理。
 
-3、然后把数据部分发送给MySQL服务端，MySQL服务端对SQL语句进行占位符替换。
+3、然后把数据部分发送给 MySQL 服务端，MySQL 服务端对 SQL 语句进行占位符替换。
 
-4、MySQL服务端执行完整的SQL语句并将结果返回给客户端。
+4、MySQL 服务端执行完整的 SQL 语句并将结果返回给客户端。
 
 ### 为什么要预处理
 
-1、优化MySQL服务器重复执行SQL的方法，可以提升服务器性能，提前让服务器编译，一次编译多次执行，节省后续编译的成本。
+1、优化 MySQL 服务器重复执行 SQL 的方法，可以提升服务器性能，提前让服务器编译，一次编译多次执行，节省后续编译的成本。
 
-2、避免SQL注入问题。
+2、避免 SQL 注入问题。
 
-### Go实现MySQL预处理
+### Go 实现 MySQL 预处理
 
 `database/sql`中使用下面的`Prepare`方法来实现预处理操作：
 
@@ -321,7 +321,7 @@ func deleteRowDemo() {
 func (db *DB) Prepare(query string) (*Stmt, error)
 ```
 
-`Prepare`方法会先将sql语句发送给MySQL服务端，返回一个准备好的状态用于之后的查询和命令。返回值可以同时执行多个查询和命令。
+`Prepare`方法会先将 sql 语句发送给 MySQL 服务端，返回一个准备好的状态用于之后的查询和命令。返回值可以同时执行多个查询和命令。
 
 查询操作的预处理示例代码如下：
 
@@ -379,11 +379,11 @@ func prepareInsertDemo() {
 }
 ```
 
-### SQL注入问题
+### SQL 注入问题
 
-**我们任何时候都不应该自己拼接SQL语句！**
+**我们任何时候都不应该自己拼接 SQL 语句！**
 
-这里我们演示一个自行拼接SQL语句的示例，编写一个根据name字段查询user表的函数如下：
+这里我们演示一个自行拼接 SQL 语句的示例，编写一个根据 name 字段查询 user 表的函数如下：
 
 ```go
 // sql注入示例
@@ -400,7 +400,7 @@ func sqlInjectDemo(name string) {
 }
 ```
 
-此时以下输入字符串都可以引发SQL注入问题：
+此时以下输入字符串都可以引发 SQL 注入问题：
 
 ```go
 sqlInjectDemo("xxx' or 1=1#")
@@ -408,7 +408,7 @@ sqlInjectDemo("xxx' union select * from user #")
 sqlInjectDemo("xxx' and (select count(*) from user) <10 #")
 ```
 
-**补充：**不同的数据库中，SQL语句使用的占位符语法不尽相同。
+**补充：**不同的数据库中，SQL 语句使用的占位符语法不尽相同。
 
 | 数据库     | 占位符语法   |
 | :--------- | :----------- |
@@ -417,28 +417,28 @@ sqlInjectDemo("xxx' and (select count(*) from user) <10 #")
 | SQLite     | `?` 和`$1`   |
 | Oracle     | `:name`      |
 
-## Go实现MySQL事务
+## Go 实现 MySQL 事务
 
 ### 什么是事务
 
-一个最小的不可再分的工作单元，通常一个事务对应一个完整的业务（例如银行转账，该业务就是一个最小的工作单元），同时这个完整的业务需要执行多次的DML（insert、update、delete）语句共同联合完成。A转账给B，这里面就需要执行两次update操作。
+一个最小的不可再分的工作单元，通常一个事务对应一个完整的业务（例如银行转账，该业务就是一个最小的工作单元），同时这个完整的业务需要执行多次的 DML（insert、update、delete）语句共同联合完成。A 转账给 B，这里面就需要执行两次 update 操作。
 
-在MySQL中只有使用了Innodb数据库引擎的数据库或表才支持事务。事务处理了可以用来维护数据库的完整性，保证成批的SQL语句要么全部执行，要么全部不执行。
+在 MySQL 中只有使用了 Innodb 数据库引擎的数据库或表才支持事务。事务处理了可以用来维护数据库的完整性，保证成批的 SQL 语句要么全部执行，要么全部不执行。
 
-### 事务的ACID
+### 事务的 ACID
 
-事务通常必须满足4个条件（ACID）：原子性（atomicity，也称为不可分割性）、一致性（consistency）、隔离性（isolation，也称独立性）、持久性（durability）。
+事务通常必须满足 4 个条件（ACID）：原子性（atomicity，也称为不可分割性）、一致性（consistency）、隔离性（isolation，也称独立性）、持久性（durability）。
 
-|  条件  | 解释                                                         |
-| :----: | :----------------------------------------------------------- |
-| 原子性 | 一个事务（transaction）中的所有操作，要么全部完成，要么全部不完成，不会结束在中间某个环节。事务在执行过程中发生错误，会被回滚（Rollback）到事务开始前的状态，就像这个事务从来没有执行过一样。 |
-| 一致性 | 在事务开始之前和事务结束以后，数据库的完整性没有被破坏。这表示写入的资料必须完全符合所有的预设规则，这包含资料的精确度、串联性以及后续数据库可以自发性地完成预定的工作。 |
+|  条件  | 解释                                                                                                                                                                                                                                                            |
+| :----: | :-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 原子性 | 一个事务（transaction）中的所有操作，要么全部完成，要么全部不完成，不会结束在中间某个环节。事务在执行过程中发生错误，会被回滚（Rollback）到事务开始前的状态，就像这个事务从来没有执行过一样。                                                                   |
+| 一致性 | 在事务开始之前和事务结束以后，数据库的完整性没有被破坏。这表示写入的资料必须完全符合所有的预设规则，这包含资料的精确度、串联性以及后续数据库可以自发性地完成预定的工作。                                                                                        |
 | 隔离性 | 数据库允许多个并发事务同时对其数据进行读写和修改的能力，隔离性可以防止多个事务并发执行时由于交叉执行而导致数据的不一致。事务隔离分为不同级别，包括读未提交（Read uncommitted）、读提交（read committed）、可重复读（repeatable read）和串行化（Serializable）。 |
-| 持久性 | 事务处理结束后，对数据的修改就是永久的，即便系统故障也不会丢失。 |
+| 持久性 | 事务处理结束后，对数据的修改就是永久的，即便系统故障也不会丢失。                                                                                                                                                                                                |
 
 ### 事务相关方法
 
-Go语言中使用以下三个方法实现MySQL中的事务操作。 
+Go 语言中使用以下三个方法实现 MySQL 中的事务操作。
 
 开始事务
 
@@ -528,13 +528,13 @@ func transactionDemo() {
 
 # sqlx
 
-在项目中我们通常会使用`database/sql`连接MySQL数据库，本文借助使用`sqlx`实现批量插入数据的例子，介绍了`sqlx`中可能被你忽视了的`sqlx.In`和`DB.NameExec`方法。
+在项目中我们通常会使用`database/sql`连接 MySQL 数据库，本文借助使用`sqlx`实现批量插入数据的例子，介绍了`sqlx`中可能被你忽视了的`sqlx.In`和`DB.NameExec`方法。
 
-## sqlx介绍
+## sqlx 介绍
 
-在项目中我们通常可能会使用`database/sql`连接MySQL数据库，`sqlx`可以认为是Go语言内置`database/sql`的超集，它在优秀的内置`database/sql`基础上提供了一组扩展，这些扩展中除了大家长用来查询的`	Get(dest interface{}, ...)) error`和`Select(dest interface{}, ...)) error`外还有很多其他强大的功能。
+在项目中我们通常可能会使用`database/sql`连接 MySQL 数据库，`sqlx`可以认为是 Go 语言内置`database/sql`的超集，它在优秀的内置`database/sql`基础上提供了一组扩展，这些扩展中除了大家长用来查询的` Get(dest interface{}, ...)) error`和`Select(dest interface{}, ...)) error`外还有很多其他强大的功能。
 
-## 安装sqlx
+## 安装 sqlx
 
 ```go
 go get github.com/jmoiron/sqlx
@@ -644,7 +644,7 @@ func queryMultiRowDemo() {
 
 ### 插入、更新和删除
 
-sqlx中的exec方法与原生sql中的exec使用基本一致：
+sqlx 中的 exec 方法与原生 sql 中的 exec 使用基本一致：
 
 ```go
 func insertRowDemo() {
@@ -695,7 +695,7 @@ func deleteRowDemo() {
 
 ### NamedExec
 
-`DB.NamedExec`方法用来绑定SQL语句和结构体或map中的同名字段。
+`DB.NamedExec`方法用来绑定 SQL 语句和结构体或 map 中的同名字段。
 
 ```go
 func insertUserDemo() {
@@ -714,12 +714,6 @@ func insertUserDemo() {
 
 ### NamedQuery
 
-
-
-
-
-
-
 ### 事务操作
 
 对于事务操作，我们可以使用`sqlx`中提供的`db.Beginx()`和`tx.Exec()`方法。示例代码如下：
@@ -727,18 +721,3 @@ func insertUserDemo() {
 ```
 
 ```
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
