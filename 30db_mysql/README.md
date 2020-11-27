@@ -65,14 +65,13 @@ import (
 
 var (
 	dbConn *sql.DB
-	err    error
 )
 
-func initDB() error {
+func initDB() (err error) {
 	//DSN：data Sourse Name
 	dsn := "wancheng:wancheng@tcp(127.0.0.1:3306)/video_server"
 	// 不会校验账号密码是否正确
-	//注意：这里不要使用:=，我们是给全局变量赋值，然后在main函数中使用全局变量
+	//注意：这里不要使用:=，我们是给全局变量赋值，然后在main函数中使用全局变量 
 	dbConn, err = sql.Open("mysql", dsn)
 	if err != nil {
 		fmt.Println("Database connect failed, err:", err)
@@ -101,6 +100,14 @@ func main() {
 ```
 
 其中`sql.DB`是表示连接的数据库对象（结构体实例），它保存了连接数据库相关的所有信息。它内部维护着一个具有零到多个底层连接的连接池，它可以安全地被多个 goroutine 同时使用。
+
+###  SetConnMaxLifetime
+
+```go
+func (db *DB) SetConnMaxLifetime(duration time.Time)
+```
+
+设置连接最长存活时间。
 
 ### SetMaxOpenConns
 
@@ -423,7 +430,7 @@ sqlInjectDemo("xxx' and (select count(*) from user) <10 #")
 
 一个最小的不可再分的工作单元，通常一个事务对应一个完整的业务（例如银行转账，该业务就是一个最小的工作单元），同时这个完整的业务需要执行多次的 DML（insert、update、delete）语句共同联合完成。A 转账给 B，这里面就需要执行两次 update 操作。
 
-在 MySQL 中只有使用了 Innodb 数据库引擎的数据库或表才支持事务。事务处理了可以用来维护数据库的完整性，保证成批的 SQL 语句要么全部执行，要么全部不执行。
+在 MySQL 中只有使用了 `Innodb `数据库引擎的数据库或表才支持事务。事务处理了可以用来维护数据库的完整性，保证成批的 SQL 语句要么全部执行，要么全部不执行。
 
 ### 事务的 ACID
 
@@ -528,11 +535,11 @@ func transactionDemo() {
 
 # sqlx
 
-在项目中我们通常会使用`database/sql`连接 MySQL 数据库，本文借助使用`sqlx`实现批量插入数据的例子，介绍了`sqlx`中可能被你忽视了的`sqlx.In`和`DB.NameExec`方法。
+在项目中我们通常会使用`database/sql`连接 MySQL 数据库，本文借助使用`sqlx`实现批量插入数据的例子，介绍了`sqlx`中可能被你忽视了的`sqlx.In`和`DB.NameExe c`方法。
 
 ## sqlx 介绍
 
-在项目中我们通常可能会使用`database/sql`连接 MySQL 数据库，`sqlx`可以认为是 Go 语言内置`database/sql`的超集，它在优秀的内置`database/sql`基础上提供了一组扩展，这些扩展中除了大家长用来查询的` Get(dest interface{}, ...)) error`和`Select(dest interface{}, ...)) error`外还有很多其他强大的功能。
+在项目中我们通常可能会使用`database/sql`连接 MySQL 数据库，`sqlx`可以认为是 Go 语言内置`database/sql`的超集，它在优秀的内置`database/sql`基础上提供了一组扩展，这些扩展中除了大家常用来查询的` Get(dest interface{}, ...)) error`和`Select(dest interface{}, ...)) error`外还有很多其他强大的功能。
 
 ## 安装 sqlx
 
@@ -714,10 +721,294 @@ func insertUserDemo() {
 
 ### NamedQuery
 
+```go
+func namedQuery() {
+	sqlStr := "select * from users where name = :name"
+
+	// rows, err := dbConn.NamedQuery(sqlStr, map[string]interface{}{
+	// 	"name": "谭万铖最帅",
+	// })
+	// if err != nil {
+	// 	fmt.Printf("dbConn.NamedQuery failed, err:%v", err)
+	// 	return
+	// }
+	// defer rows.Close()
+
+	u := user{
+		Name: "谭万铖最帅",
+	}
+	rows, err := dbConn.NamedQuery(sqlStr, u)
+	if err != nil {
+		fmt.Printf("dbConn.NamedQuery failed, err:%v", err)
+		return
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var u user
+		err := rows.StructScan(&u)
+		if err != nil {
+			fmt.Printf("scan failed, err:%v\n", err)
+			continue
+		}
+		fmt.Printf("user:%#v\n", u)
+	}
+}
+```
+
 ### 事务操作
 
 对于事务操作，我们可以使用`sqlx`中提供的`db.Beginx()`和`tx.Exec()`方法。示例代码如下：
 
+```go
+func transactionDemo2() (err error) {
+	tx, err := dbConn.Beginx() //开启事务
+	if err != nil {
+		fmt.Printf("begin trans failed, err: %v\n", err)
+		return err
+	}
+
+	//注册  事务提交
+	defer func() {
+		if p := recover(); p != nil {
+			tx.Rollback()
+			panic(p) //re-throw panic after Rollback
+		} else if err != nil {
+			fmt.Println("rollback")
+			tx.Rollback()
+		} else {
+			err = tx.Commit() //err is nil, if Commit returns error, update err.
+			fmt.Println("commit")
+		}
+	}()
+
+	//first insert
+	sqlStr1 := "Update users set age=0 where id=?"
+	ret, err := tx.Exec(sqlStr1, 6)
+	if err != nil {
+		return err
+	}
+	n, err := ret.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if n != 1 {
+		return errors.New("exec sqlStr1 failed")
+	}
+
+	//second insert
+	sqlStr2 := "Update users set age=20 where id=?"
+	ret2, err := tx.Exec(sqlStr2, 5)
+	if err != nil {
+		return err
+	}
+	n, err = ret2.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if n != 1 {
+		return errors.New("exec sqlStr1 failed")
+	}
+	return err
+}
 ```
 
+## sqlx.In
+
+`sqlx.In`是`sqlx`提供的一个非常方便的函数。
+
+### sqlx.In的批量插入示例
+
+#### 表结构
+
 ```
+CREATE TABLE `sql_test`.`testuser` (  
+`id` INT NOT NULL,  
+`name` VARCHAR(45) NULL,  
+`age` INT NULL,  PRIMARY KEY (`id`)
+)
+ENGINE = InnoDB 
+DEFAULT CHARACTER SET = utf8mb4;
+```
+
+#### 结构体
+
+定义一个`user`结构体，字段通过tag与数据库中user表的列一致：
+
+```go
+type User struct {
+	Name string `db:"name"`
+	Age  int    `db:"age"`
+}
+```
+
+#### bindvars（绑定变量）
+
+查询占位符`?`在内部称为***bindvars（查询占位符）***,它非常重要。你应该始终使用它们向数据库发送值，因为它们可以防止SQL注入攻击。`database/sql`不尝试对查询文本进行任何验证；它与编码的参数一起按原样发送到服务器。除非驱动程序实现一个特殊的接口，否则在执行之前，查询是在服务器上准备的。因此`bindvars`是特定于数据库的：
+
+- MySQL中使用`?`
+- PostgreSQL使用枚举的`$1`、`$2`等bindvar语法
+- SQLite中`?`和`$1`的语法都支持
+- Oracle中使用`:name`的语法
+
+`bindvars`的一个常见误解是，它们用来在sql语句中插入值。它们其实仅用于参数化，不允许更改SQL语句的结构。例如，使用`bindvars`尝试参数化列或表名将不起作用：
+
+```go
+// ？不能用来插入表名（做SQL语句中表名的占位符）
+db.Query("SELECT * FROM ?", "mytable")
+ 
+// ？也不能用来插入列名（做SQL语句中列名的占位符）
+db.Query("SELECT ?, ? FROM people", "name", "location")
+```
+
+#### 自己拼接语句实现批量插入
+
+比较笨，但是很好理解。就是有多少个User就拼接多少个`(?,?)`：
+
+```go
+//BatchInsertUsers自行构造批量插入的语句
+func BatchInsertUsers(users []*User) error {
+    
+}//BatchInsertUsers 自行实现批量插入，笨方法
+func BatchInsertUsers(users []*Testuser) error {
+	//存放(?,?)的slice
+	valueStrings := make([]string, 0, len(users))
+	//存放values的slice
+	valueArgs := make([]interface{}, 0, len(users)*2)
+
+	//遍历users准备相关数据
+	for _, u := range users {
+		//此处占位符要与插入值的个数对应
+		valueStrings = append(valueStrings, "(?,?)")
+		valueArgs = append(valueArgs, u.Name)
+		valueArgs = append(valueArgs, u.Age)
+	}
+	//自行拼接要执行的具体语句
+	sqlStr := fmt.Sprintf("insert into testuser (name,age) values %s", strings.Join(valueStrings, ","))
+	fmt.Println(sqlStr)
+	_, err := dbConn.Exec(sqlStr, valueArgs...)
+	return err
+}
+
+func(){
+    users := make([]*Testuser, 0, 3) //注意不能合并长度和容量的声明，否则会报panic，无效的内存地址或空指针
+	var u1 = &Testuser{Age: 18, Name: "moqqll"}
+	var u2 = &Testuser{Age: 20, Name: "小王子"}
+	users = append(users, u1, u2)
+	BatchInsertUsers(users)
+}
+```
+
+#### 使用sqlx.In实现批量插入
+
+首先我们需要给我们的结构体实现`driver.Valuer`接口：
+
+```go
+//Value ...
+func (u Testuser) Value() (driver.Value, error) {
+	return []interface{}{u.Name, u.Age}, nil
+}
+```
+
+使用`sqlx.In`实现批量插入代码如下：
+
+```go
+//BatchInsertUsers2 sqlx.In批量插入
+func BatchInsertUsers2(users []interface{}) error {
+	fmt.Println(users)
+	query, args, _ := sqlx.In(
+		"insert into testuser(name,age) values (?),(?)",
+		users...,
+	)
+	fmt.Println(query)
+	fmt.Println(args)
+	_, err := dbConn.Exec(query, args...)
+	return err
+}
+```
+
+#### 使用NamedExec实现批量插入
+
+**注意** ：该功能目前有人已经推了[#285 PR](https://github.com/jmoiron/sqlx/pull/285)，但是作者还没有发`release`，所以想要使用下面的方法实现批量插入需要暂时使用`master`分支的代码：
+
+```
+go get github.com/jmoiron/sqlx@master
+```
+
+使用`NamedExec`实现批量插入的代码如下：
+
+```go
+// BatchInsertUsers3 使用NamedExec实现批量插入
+func BatchInsertUsers3(users []*User) error {
+	_, err := DB.NamedExec("INSERT INTO user (name, age) VALUES (:name, :age)", users)
+	return err
+}
+```
+
+### sqlx.In的查询示例
+
+关于`sqlx.In`这里再补充一个用法，在`sqlx`查询语句中实现In查询和FIND_IN_SET函数。即实现`SELECT * FROM user WHERE id in (3, 2, 1);`和`SELECT * FROM user WHERE id in (3, 2, 1) ORDER BY FIND_IN_SET(id, '3,2,1')`
+
+#### in查询
+
+查询id在给定id集合中的数据。
+
+```go
+//根据给定ID查询
+func queryByIDs(ids []int) (users []Testuser, err error) {
+	//动态填充id
+	query, args, err := sqlx.In("select id,name,age from testuser where id in(?)", ids)
+	if err != nil {
+		return
+	}
+	//sqlx.In 返回带 `?` bindvar的查询语句, 我们使用Rebind()重新绑定它
+	query = dbConn.Rebind(query)
+	err = dbConn.Select(&users, query, args...)
+	return
+}
+
+
+func main(){
+    //根据给定的id集合查询数据
+	users := make([]Testuser, 0, 3)
+	var id1 = 1
+	var id2 = 2
+	var id4 = 4
+	ids := []int{id1, id2, id4}
+	users, _ = queryByIDs(ids)
+	fmt.Println(users)
+}
+```
+
+#### in查询和FIND_IN_SET函数
+
+```go
+//QueryAndOrderByIDs 按照指定id查询并维护顺序
+func QueryAndOrderByIDs(ids []int) (users []Testuser, err error) {
+	//动态填充id
+	strIDs := make([]string, 0, len(ids))
+	for _, id := range ids {
+		strIDs = append(strIDs, fmt.Sprintf("%d", id))
+	}
+	query, args, err := sqlx.In("select id,name,age from testuser where id in (?) order by find_in_set(id,?)", ids, strings.Join(strIDs, ","))
+	if err != nil {
+		return
+	}
+	query = dbConn.Rebind(query)
+	err = dbConn.Select(&users, query, args...)
+	return
+}
+```
+
+**注意**：当然，在这个例子里面你也可以先使用`IN`查询，然后通过代码按给定的ids对查询结果进行排序。
+
+
+
+
+
+
+
+
+
+
+

@@ -170,7 +170,7 @@ for i := 0; i < 10; i++ {
 
 Go 语言内建的`copy()`函数可以迅速地将一个切片的数据复制到另外一个切片空间中，使用方式如下：
 
-`copy(destSlice,srcSlice[]T)`
+`copy(destSlice,srcSlice []T)`
 
 其中：
 

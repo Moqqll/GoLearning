@@ -4,7 +4,7 @@ import (
 	"database/sql"
 	"fmt"
 
-	_ "github.com/go-sql-driver/mysql" //匿名导入，进初始化
+	_ "github.com/go-sql-driver/mysql" //匿名导入，进行初始化init()
 )
 
 type user struct {
@@ -15,10 +15,9 @@ type user struct {
 
 var (
 	dbConn *sql.DB
-	err    error
 )
 
-func initDB() error {
+func initDB() (err error) {
 	//DSN：data Sourse Name
 	dsn := "wancheng:wancheng@tcp(127.0.0.1:3306)/sql_test"
 	// 不会校验账号密码是否正确
@@ -38,10 +37,11 @@ func initDB() error {
 	return nil
 }
 
+//MySQL增删改查
 func queryRowDemo() {
 	sqlStr := "select id, name, age from users where id=?"
 	var u user
-	err := dbConn.QueryRow(sqlStr, 1).Scan(&u.id, &u.name, &u.age)
+	err := dbConn.QueryRow(sqlStr, 1).Scan(&u.id, &u.name, &u.age) //sacn函数带有close。
 	if err != nil {
 		fmt.Printf("scan failed, err:%v\n", err)
 		return
@@ -77,7 +77,8 @@ func insertRowDemo() {
 		fmt.Printf("insert failed, err:%v\n", err)
 		return
 	}
-	theID, err := ret.LastInsertId() //新插入的数据的in
+	var theID int64
+	theID, err = ret.LastInsertId() //新插入的数据的in
 	if err != nil {
 		fmt.Printf("get lastinsert ID failed,err:%v\n", err)
 		return
@@ -92,7 +93,8 @@ func updateRowDemo() {
 		fmt.Printf("update failed, err:%v\n", err)
 		return
 	}
-	n, err := ret.RowsAffected() //操作影响的行数
+	var n int64
+	n, err = ret.RowsAffected() //操作影响的行数
 	if err != nil {
 		fmt.Printf("get RowsAffected failed, err%v\n", err)
 		return
@@ -107,7 +109,8 @@ func deleteRowDemo() {
 		fmt.Printf("delete failed, err:%v\n", err)
 		return
 	}
-	n, err := ret.RowsAffected() //操作影响的行数
+	var n int64
+	n, err = ret.RowsAffected() //操作影响的行数
 	if err != nil {
 		fmt.Printf("get RowsAffected failed, err:%v\n", err)
 		return
@@ -115,6 +118,7 @@ func deleteRowDemo() {
 	fmt.Printf("delete success, affected rows: %d\n", n)
 }
 
+//MySQL预处理
 func prepareQueryDemo() {
 	sqlStr := "select id, name, age from users where id >?"
 	stmtQuery, err := dbConn.Prepare(sqlStr)
@@ -163,6 +167,7 @@ func prepareInsertDemo() {
 	fmt.Println("insert success.")
 }
 
+//MySQL事务
 func transactionDemo() {
 	tx, err := dbConn.Begin() //开启事务
 	if err != nil {
@@ -182,9 +187,18 @@ func transactionDemo() {
 	// }
 	// defer stmtIn.Close()
 
+	//使用事务预处理
+	sqlStr := "update users set age = ? where id = ?"
+	stmtIn, err := tx.Prepare(sqlStr)
+	if err != nil {
+		fmt.Printf("prepare failed, err:%v\n", err)
+		return
+	}
+	defer stmtIn.Close()
+
 	//一项更新
-	sqlStr1 := "update users set age = 18 where id = ?"
-	ret1, err := tx.Exec(sqlStr1, 1)
+	// sqlStr1 := "update users set age = 18 where id = ?"
+	ret1, err := stmtIn.Exec(0, 1)
 	if err != nil {
 		tx.Rollback() //回滚
 		fmt.Printf("exec sql1 failed, err:%v\n", err)
@@ -198,8 +212,8 @@ func transactionDemo() {
 	}
 
 	//二项更新
-	sqlStr2 := "update users set age = 16 where id = ?"
-	ret2, err := tx.Exec(sqlStr2, 2)
+	// sqlStr2 := "update users set age = 16 where id = ?"
+	ret2, err := stmtIn.Exec(18, 3)
 	if err != nil {
 		tx.Rollback() //回滚
 		fmt.Printf("exec sql2 failed, err:%v\n", err)
@@ -227,7 +241,7 @@ func transactionDemo() {
 
 func main() {
 	//init DB
-	err = initDB()
+	err := initDB()
 	if err != nil {
 		fmt.Println("init db failed,err:", err)
 		return
